@@ -132,10 +132,168 @@ O `php/Dockerfile` inclui a instalação do Xdebug. Para habilitá-lo:
 2.  Reconstrua a imagem PHP se você alterou o `php/xdebug.ini` ou as variáveis no Dockerfile (geralmente não necessário se usar `.env`): `docker-compose build php` (ou `docker-compose up -d --build`).
 3.  Configure seu IDE (VSCode, PhpStorm, etc.) para escutar conexões Xdebug na porta configurada (padrão 9003).
 
-## Solução de Problemas Comuns
+## API de Login (Autenticação JWT)
 
-- **Erro de Porta em Uso**: Se a porta definida em `APACHE_PORT` já estiver em uso por outro aplicativo, você receberá um erro. Altere o valor de `APACHE_PORT` no arquivo `.env` para uma porta diferente (ex: `8081`) e reinicie os contêineres (`docker-compose down && docker-compose up -d`).
-- **Problemas de Permissão na pasta `app/`**: Se você não configurou o `UID`/`GID` ou se os valores não correspondem, o servidor web/PHP dentro do contêiner pode não ter permissão para escrever em arquivos/pastas dentro de `app/` (ex: para uploads, cache). Certifique-se de que as permissões da pasta `app/` no seu host permitem a escrita pelo usuário/grupo correto ou use a configuração UID/GID.
+Este ambiente inclui uma estrutura base para uma API de login e registro de usuários utilizando JSON Web Tokens (JWT) para autenticação.
+
+### Estrutura da API
+
+- **`app/api/`**: Contém os scripts dos endpoints da API.
+  - `register.php`: Endpoint para registrar novos usuários.
+  - `login.php`: Endpoint para autenticar usuários e obter um JWT.
+  - `profile.php`: Exemplo de endpoint protegido que requer um JWT válido.
+- **`app/src/`**: Contém as classes principais da lógica da aplicação.
+  - `Database.php`: Gerencia a conexão PDO com o banco de dados.
+  - `Entity/User.php`: Representa a entidade usuário.
+  - `Repository/UserRepository.php`: Interage com a tabela `users` no banco de dados.
+  - `Service/AuthService.php`: Lida com a lógica de registro, login, e geração/validação de JWT.
+  - `Utils/ApiResponse.php`: Classe utilitária para enviar respostas JSON padronizadas.
+- **`app/config/config.php`**: Carrega as configurações da aplicação (banco de dados, JWT) a partir do arquivo `.env`.
+- **`app/bootstrap.php`**: Inicializa o autoloader do Composer e carrega as variáveis de ambiente.
+- **`app/composer.json`**: Define as dependências PHP (como `firebase/php-jwt` e `vlucas/phpdotenv`).
+
+### Configuração da API
+
+1.  **Variáveis de Ambiente**: Certifique-se de que as variáveis `MYSQL_HOST`, `MYSQL_PORT`, `MYSQL_DATABASE`, `MYSQL_USER`, `MYSQL_PASSWORD`, `JWT_SECRET`, `JWT_EXPIRY_SECONDS`, `JWT_ISSUER`, `JWT_AUDIENCE` estão configuradas corretamente no arquivo `PHP/.env`.
+
+    - **IMPORTANTE**: Altere `JWT_SECRET` para uma chave secreta longa, forte e aleatória. Não use o valor padrão em produção.
+
+2.  **Instalar Dependências do Composer**:
+    Se ainda não o fez, execute o Composer para instalar as bibliotecas necessárias. Dentro da pasta `PHP/` no seu terminal:
+
+    ```bash
+    docker-compose exec php composer install -d /var/www/html/app
+    ```
+
+    ou
+
+    ```bash
+    docker-compose exec php composer update -d /var/www/html/app
+    ```
+
+3.  **Criar Tabela de Usuários**:
+    Execute o seguinte SQL no seu banco de dados (ou use o sql que está em 'banco-de-dados/users.sql'):
+    ```sql
+    CREATE TABLE users (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        username VARCHAR(50) NOT NULL UNIQUE,
+        email VARCHAR(100) NOT NULL UNIQUE,
+        password_hash VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+    ```
+
+### Endpoints da API
+
+Todos os endpoints esperam e retornam dados no formato JSON.
+
+- **`POST /app/api/register.php`**
+
+  - Registra um novo usuário.
+  - **Corpo da Requisição (JSON):**
+    ```json
+    {
+      "username": "testuser",
+      "email": "test@example.com",
+      "password": "password123"
+    }
+    ```
+  - **Resposta de Sucesso (201):**
+    ```json
+    {
+      "success": true,
+      "message": "User registered successfully.",
+      "userId": 1
+    }
+    ```
+  - **Resposta de Erro (400):**
+    ```json
+    {
+      "success": false,
+      "message": "Email already in use."
+    }
+    ```
+
+- **`POST /app/api/login.php`**
+
+  - Autentica um usuário e retorna um JWT.
+  - **Corpo da Requisição (JSON):**
+    ```json
+    {
+      "email": "test@example.com",
+      "password": "password123"
+    }
+    ```
+  - **Resposta de Sucesso (200):**
+    ```json
+    {
+      "success": true,
+      "message": "Login successful.",
+      "token": "eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9..."
+    }
+    ```
+  - **Resposta de Erro (401):**
+    ```json
+    {
+      "success": false,
+      "message": "Invalid email or password."
+    }
+    ```
+
+- **`GET /app/api/profile.php`**
+  - Endpoint de exemplo protegido. Requer um token JWT válido no cabeçalho `Authorization`.
+  - **Cabeçalho da Requisição:**
+    `Authorization: Bearer <seu_jwt_aqui>`
+  - **Resposta de Sucesso (200):**
+    ```json
+    {
+      "message": "Access granted.",
+      "user_data": {
+        "userId": 1,
+        "username": "testuser",
+        "email": "test@example.com"
+      }
+    }
+    ```
+  - **Resposta de Erro (401):**
+    ```json
+    {
+      "message": "Access denied. Invalid or expired token."
+    }
+    ```
+
+### Como Usar
+
+1.  Inicie o ambiente Docker: `docker-compose up -d` (na pasta `PHP/`).
+2.  Use uma ferramenta como Postman, Insomnia ou `curl` para interagir com os endpoints da API.
+    - Exemplo de registro com `curl`:
+      ```bash
+      curl -X POST -H "Content-Type: application/json" \
+      -d '{"username":"newuser","email":"new@example.com","password":"securepassword"}' \
+      http://localhost:8081/app/api/register.php
+      ```
+    - Exemplo de login com `curl`:
+      ```bash
+      curl -X POST -H "Content-Type: application/json" \
+      -d '{"email":"new@example.com","password":"securepassword"}' \
+      http://localhost:8081/app/api/login.php
+      ```
+    - Exemplo de acesso ao perfil com `curl` (substitua `YOUR_TOKEN` pelo token obtido no login):
+      ```bash
+      curl -X GET -H "Authorization: Bearer YOUR_TOKEN" \
+      http://localhost:8081/app/api/profile.php
+      ```
+      (Lembre-se de que a porta `8081` é o valor de `APACHE_PORT` no seu `.env`).
+
+### Próximos Passos e Melhorias
+
+- **Validação de Entrada Detalhada**: Implementar validação mais robusta para todos os dados de entrada.
+- **Tratamento de Erros**: Melhorar o tratamento de exceções e logs de erro.
+- **Router**: Implementar um router mais sofisticado (ex: usando `.htaccess` e um script PHP central) para URLs amigáveis (ex: `/api/login` em vez de `/app/api/login.php`).
+- **Refresh Tokens**: Para sessões mais longas e seguras, implementar refresh tokens.
+- **Testes**: Adicionar testes unitários e de integração.
+- **Rate Limiting**: Implementar limitação de taxa para proteger contra ataques de força bruta.
+- **HTTPS**: Sempre usar HTTPS em produção.
 
 ---
 
