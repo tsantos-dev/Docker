@@ -36,23 +36,40 @@ class AuthService
      */
     public function register(string $username, string $email, string $password): array
     {
+        // Validação de campos obrigatórios
         if (empty($username) || empty($email) || empty($password)) {
             return ['success' => false, 'message' => 'Username, email, and password are required.'];
         }
+
+        // Validação do formato do e-mail
         if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
             return ['success' => false, 'message' => 'Invalid email format.'];
         }
+
+        // Validação do nome de usuário
+        if (strlen($username) < 3) {
+            return ['success' => false, 'message' => 'Username must be at least 3 characters long.'];
+        }
+        if (strlen($username) > 50) {
+            return ['success' => false, 'message' => 'Username cannot exceed 50 characters.'];
+        }
+        if (!preg_match('/^[a-zA-Z0-9_]+$/', $username)) {
+            return ['success' => false, 'message' => 'Username can only contain letters, numbers, and underscores.'];
+        }
+
+        // Validação da senha
         if (strlen($password) < 8) {
             return ['success' => false, 'message' => 'Password must be at least 8 characters long.'];
         }
+        // Melhoria futura: Adicionar regras de complexidade de senha aqui (ex: maiúsculas, minúsculas, números, especiais)
 
+        // Validação de unicidade
         if ($this->userRepository->findByEmail($email)) {
             return ['success' => false, 'message' => 'Email already in use.'];
         }
         if ($this->userRepository->findByUsername($username)) {
             return ['success' => false, 'message' => 'Username already taken.'];
         }
-
         $passwordHash = password_hash($password, PASSWORD_ARGON2ID);
         $userId = $this->userRepository->create($username, $email, $passwordHash);
 

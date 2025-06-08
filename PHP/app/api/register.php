@@ -23,11 +23,8 @@ $inputData = json_decode(file_get_contents("php://input"), true);
 $username = $inputData['username'] ?? '';
 $email = $inputData['email'] ?? '';
 $password = $inputData['password'] ?? '';
-
-if (empty($username) || empty($email) || empty($password)) {
-    ApiResponse::json(400, ['message' => 'Username, email, and password are required.']);
-}
-
+// A validação de campos vazios e outras regras agora é tratada pelo AuthService
+ 
 $userRepository = new UserRepository();
 $authService = new AuthService($userRepository);
 
