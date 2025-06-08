@@ -1,0 +1,55 @@
+version: "3.8"
+
+services:
+  php:
+    build:
+      context: ./php
+      args: # Passa UID/GID do host para o Dockerfile para evitar problemas de permissão
+        UID: ${UID:-1000}
+        GID: ${GID:-1000}
+    container_name: php_fpm_app
+    volumes:
+      - ./app:/var/www/html/app # Mapeia sua pasta de código PHP
+    networks:
+      - php_app_network
+    env_file: .env # Carrega variáveis do .env
+    environment: # Permite sobrescrever variáveis do xdebug.ini via .env
+      PHP_IDE_CONFIG: ${PHP_IDE_CONFIG:-serverName=docker-php-apache}
+      XDEBUG_MODE: ${XDEBUG_MODE:-off}
+      XDEBUG_CONFIG: ${XDEBUG_CONFIG:-client_host=host.docker.internal client_port=9003 log_level=0}
+
+  apache:
+    image: httpd:2.4
+    container_name: apache_webserver
+    depends_on:
+      - php
+    ports:
+      - "${APACHE_PORT:-8080}:80" # Mapeia a porta do host para a porta 80 do Apache
+    volumes:
+      - ./app:/var/www/html/app # Apache também precisa de acesso aos arquivos (para estáticos)
+      - ./apache/my-php-app.conf:/usr/local/apache2/conf.d/my-php-app.conf # Configuração customizada do Apache
+    networks:
+      - php_app_network
+    env_file: .env
+
+  db:
+    image: mysql:8.0 # Ou mariadb:latest
+    container_name: php_mysql_db
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+    volumes:
+      - php_mysql_data:/var/lib/mysql # Persistência dos dados do MySQL
+    networks:
+      - php_app_network
+
+volumes:
+  php_mysql_data: # Define o volume nomeado para o MySQL
+
+networks:
+  php_app_network:
+    driver: bridge
