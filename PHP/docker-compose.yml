@@ -27,7 +27,7 @@ services:
       - "${APACHE_PORT:-8080}:80" # Mapeia a porta do host para a porta 80 do Apache
     volumes:
       - ./app:/var/www/html/app # Apache também precisa de acesso aos arquivos (para estáticos)
-      - ./apache/my-php-app.conf:/usr/local/apache2/conf.d/my-php-app.conf # Configuração customizada do Apache
+      - ./apache/app.conf:/usr/local/apache2/conf.d/app.conf # Configuração customizada do Apache
     networks:
       - php_app_network
     env_file: .env

@@ -1,21 +1,53 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PHP Docker Environment</title>
-    <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
-        .container { background-color: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        h1 { color: #007bff; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1>Ambiente PHP com Apache e Docker Funcionando!</h1>
-        <p>Data e Hora Atual: <?php echo date('Y-m-d H:i:s'); ?></p>
-        <h2>Informações do PHP:</h2>
-        <?php phpinfo(); ?>
-    </div>
-</body>
-</html>
+<?php
+declare(strict_types=1);
+
+// Linhas de debug:
+var_dump($_SERVER['REQUEST_URI']); // Descomente para ver a saída no Postman/navegador
+error_log("ROUTER DEBUG: app/index.php reached. REQUEST_URI is: " . ($_SERVER['REQUEST_URI'] ?? 'NOT SET'));
+// exit("Debug: Reached app/index.php. URI: " . ($_SERVER['REQUEST_URI'] ?? 'NOT SET')); // Descomente para parar a execução aqui e ver a saída
+
+
+
+// Carrega o bootstrap da aplicação (autoloader, .env, handlers de erro)
+require_once __DIR__ . '/bootstrap.php';
+
+use App\Controller\ApiController;
+use App\Utils\ApiResponse;
+
+// Configura cabeçalhos CORS (ajuste para produção)
+header("Access-Control-Allow-Origin: *");
+header("Content-Type: application/json; charset=UTF-8");
+header("Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS"); // Permite métodos comuns
+header("Access-Control-Max-Age: 3600");
+header("Access-Control-Allow-Headers: Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With");
+
+// Lida com requisições OPTIONS (preflight CORS)
+if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
+    ApiResponse::json(200, ['message' => 'CORS preflight successful']);
+}
+
+// Obtém a URI da requisição e o método HTTP
+$requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
+$requestMethod = $_SERVER['REQUEST_METHOD'];
+
+// Remove o prefixo '/app' se estiver presente (depende da sua configuração do Apache/DocumentRoot)
+// Se o DocumentRoot do Apache aponta diretamente para /var/www/html/app, a URI já começa com /api/...
+// Se o DocumentRoot aponta para /var/www/html e você acessa via /app/..., pode precisar desta linha:
+// $requestUri = str_replace('/app', '', $requestUri);
+
+// Roteamento simples
+$controller = new ApiController();
+
+switch ($requestUri) {
+    case '/api/register':
+        ($requestMethod === 'POST') ? $controller->register() : ApiResponse::json(405, ['message' => 'Method Not Allowed']);
+        break;
+    case '/api/login':
+        ($requestMethod === 'POST') ? $controller->login() : ApiResponse::json(405, ['message' => 'Method Not Allowed']);
+        break;
+    case '/api/profile':
+        ($requestMethod === 'GET') ? $controller->profile() : ApiResponse::json(405, ['message' => 'Method Not Allowed']);
+        break;
+    default:
+        ApiResponse::json(404, ['message' => 'Not Found']);
+}

@@ -24,7 +24,7 @@ PHP/
 ├── .env                # Contém as variáveis de ambiente (senhas, portas, etc.)
 ├── app/                # Raiz do seu código PHP (DocumentRoot do Apache)
 │   └── index.php       # Exemplo de arquivo PHP
-├── apache/
+├── apache/             # Configurações do Apache
 │   └── my-php-app.conf # Configuração do VirtualHost do Apache para PHP-FPM
 ├── php/
 │   ├── Dockerfile      # Define a imagem PHP customizada (extensões, Composer)
@@ -138,10 +138,10 @@ Este ambiente inclui uma estrutura base para uma API de login e registro de usu�
 
 ### Estrutura da API
 
-- **`app/api/`**: Contém os scripts dos endpoints da API.
-  - `register.php`: Endpoint para registrar novos usuários.
-  - `login.php`: Endpoint para autenticar usuários e obter um JWT.
-  - `profile.php`: Exemplo de endpoint protegido que requer um JWT válido.
+- **`app/index.php`**: Ponto de entrada único da API. Contém a lógica de roteamento que direciona as requisições para o `ApiController`.
+- **`app/.htaccess`**: Arquivo de configuração do Apache que utiliza `mod_rewrite` para direcionar todas as requisições para `app/index.php`.
+- **`app/src/Controller/ApiController.php`**: Contém os métodos que implementam a lógica para cada endpoint da API (ex: registro, login, perfil).
+- **`app/api/`**: Esta pasta foi removida. A funcionalidade dos endpoints agora é gerenciada pelo `ApiController` e acessada através das rotas definidas em `app/index.php`.
 - **`app/src/`**: Contém as classes principais da lógica da aplicação.
   - `Database.php`: Gerencia a conexão PDO com o banco de dados.
   - `Entity/User.php`: Representa a entidade usuário.
@@ -287,13 +287,25 @@ Todos os endpoints esperam e retornam dados no formato JSON.
 
 ### Próximos Passos e Melhorias
 
-- **Validação de Entrada Detalhada**: Implementar validação mais robusta para todos os dados de entrada.
-- **Tratamento de Erros**: Melhorar o tratamento de exceções e logs de erro.
-- **Router**: Implementar um router mais sofisticado (ex: usando `.htaccess` e um script PHP central) para URLs amigáveis (ex: `/api/login` em vez de `/app/api/login.php`).
+- **Validação de Entrada Detalhada**:
+  - A validação de entrada para o endpoint de registro (`register.php`) foi aprimorada e centralizada no `AuthService.php`.
+  - Foram adicionadas regras mais específicas para campos como `username` (comprimento, caracteres permitidos) e mantidas/reforçadas as validações para `email` e `password`.
+  - Esta abordagem de validação detalhada na camada de serviço deve ser estendida aos demais endpoints da API (agora métodos no `ApiController`).
+- **Tratamento de Erros**:
+  - Foram implementados manipuladores globais de erro e exceção no arquivo `app/bootstrap.php`.
+  - Erros PHP (warnings, notices) são agora convertidos em `ErrorException` e capturados pelo manipulador de exceções.
+  - Exceções não capturadas são logadas detalhadamente no servidor, e uma resposta JSON genérica e segura é enviada ao cliente, especialmente em ambiente de produção (controlado pelas variáveis `APP_ENV` e `APP_DEBUG` no arquivo `.env`).
+  - Esta estrutura fornece uma base sólida para um tratamento de erros mais robusto em toda a aplicação.
+- **Router**:
+  - Foi implementado um sistema de roteamento básico com um ponto de entrada único (`app/index.php`).
+  - O Apache foi configurado (via `apache/app.conf` e `app/.htaccess`) para direcionar as requisições para `app/index.php`, permitindo URLs amigáveis (ex: `/api/login` em vez de `/app/api/login.php`).
+  - O `app/index.php` analisa a URL e o método HTTP para chamar os métodos apropriados no `ApiController.php`.
 - **Refresh Tokens**: Para sessões mais longas e seguras, implementar refresh tokens.
-- **Testes**: Adicionar testes unitários e de integração.
+- **Testes**: Adicionar testes unitários e de integração (agora mais fáceis de implementar testando os métodos do Controller e Service).
 - **Rate Limiting**: Implementar limitação de taxa para proteger contra ataques de força bruta.
 - **HTTPS**: Sempre usar HTTPS em produção.
+- **Exceções Personalizadas**: Considerar a criação de classes de exceção personalizadas (ex: `ValidationException`, `NotFoundException`) para um tratamento de erro ainda mais granular e respostas de API mais específicas.
+- **Logging Estruturado**: Para aplicações maiores, integrar uma biblioteca de logging como Monolog para logs mais detalhados e flexíveis.
 
 ---
 

@@ -1,0 +1,7 @@
+RewriteEngine On
+
+# Redireciona todas as requisições que não são para arquivos ou diretórios existentes
+# para o index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [QSA,L]
